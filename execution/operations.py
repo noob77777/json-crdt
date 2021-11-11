@@ -14,17 +14,19 @@ class RemoteType(Enum):
 
 
 class Operation:
+    # operation defination for execution
+
     def __init__(self, id, dependecies, cursor, remote, type, payload=None, args=None):
-        self.id = id
+        self.id = id   # lamport timestamp
         self.dependecies = list(dependecies)
-        self.cursor = list(cursor)
-        self.remote = remote
-        self.type = type
+        self.cursor = list(cursor)  # path in json tree
+        self.remote = remote  # is_remote boolean
+        self.type = type  # GET | ASSIGN | INSERT | DELETE
         self.payload = payload
-        self.args = args
+        self.args = args  # additional arguments required for insertion
 
     def __str__(self):
-        s = "{ " + "id: " + str(self.id) + " " + "deps: " + str(self.dependecies) + " " + "cursor: " + \
-            str(self.cursor) + " " + "type: " + str(self.type) + \
+        s = "{ " + "id: " + str(self.id) + " " + "deps: " + str(list(map(str, self.dependecies))) + " " + "cursor: " + \
+            str(self.cursor) + " " + "type: " + str(self.type) + " " + "payload: " + str(self.payload) + \
             " " + "args: " + str(self.args) + " }"
         return s

@@ -4,9 +4,13 @@ import threading
 import requests
 from execution.operations import Operation
 from store.serializer import serialize
+from util.command_parser import CommandLineArgs
+from util.logger import Logger
 
 
 class ReceiverQueue:
+    # simple thread safe queue for buffering incoming replica operations
+
     def __init__(self):
         self.q = Queue()
 
@@ -21,16 +25,27 @@ class ReceiverQueue:
 
 
 class SenderQueue(ReceiverQueue):
+    # send network queue
+    # asynchronously sends buffered send requests to replicas
+
     def __init__(self):
         super().__init__()
+        self.log = Logger()
+        self.cli = CommandLineArgs()
 
     def _start(self):
-        ENDPOINTS = []
+        # update replica ip list here
+        # filter to not send requests to self
+        ENDPOINTS = list(filter(lambda endpoint: not str(self.cli.get("port")) in endpoint, [
+                         "http://127.0.0.1:5000", "http://127.0.0.1:5001"]))
         while True:
             op = self.pop()
             if op:
                 for API_ENDPOINT in ENDPOINTS:
-                    requests.post(url=API_ENDPOINT, json=serialize(op))
+                    r = requests.post(url=API_ENDPOINT +
+                                      "/replicate", json=serialize(op))
+                    self.log.info("sent_operation_to_replica: status: ",
+                                  r.status_code, "operation: ", op, "replica: ", API_ENDPOINT)
 
     def start(self):
         t = threading.Thread(target=self._start)
