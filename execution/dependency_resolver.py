@@ -14,12 +14,12 @@ class DoneOperationsQueue:
         self.q = set()
 
     def insert(self, operation: Operation):
-        self.q.add(operation.id)
+        self.q.add(str(operation.id))
 
     # given a operation check if all its dependencies are already executed i.e. present in done queue
     def check_depencecies(self, operation: Operation):
         for dependency in operation.dependecies:
-            if not dependency in self.q:
+            if not str(dependency) in self.q:
                 return False
         return True
 

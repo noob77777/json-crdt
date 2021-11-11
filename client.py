@@ -7,21 +7,21 @@ from store.json_store import ListNodeT, MapNodeT, RegNodeT
 from store.serializer import serialize, deserialize
 
 # defining the api-endpoint
-API_ENDPOINT = "http://127.0.0.1:5001/"
+API_ENDPOINT = "http://127.0.0.1:5000/"
 
 # data to be sent to api
 data = {
-    "type": "get",
+    "type": "assign",
     "cursor": [],
-    "payload": serialize(MapNodeT("map1")),
+    "payload": serialize(RegNodeT("reg", "1")),
 }
 
 # data = {
 #     "type": "insert",
-#     "cursor": ["list"],
-#     "payload": serialize(RegNodeT(ListNodeT.get_random_id(), "uwu")),
+#     "cursor": ["map", "list"],
+#     "payload": serialize(RegNodeT(ListNodeT.get_random_id(), "onichan")),
 #     "args": {
-#         "insert_type": "insert_after",
+#         "insert_type": "insert_at_head",
 #         "insert_id": "XZYR5DA2FRJ6PX6BLOAETTR8YG79Y5QG"
 #     }
 # }

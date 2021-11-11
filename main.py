@@ -44,12 +44,15 @@ class RequestHandler:
         self.log.info("response: ", res)
         return serialize(res)
 
-    def execute(self, op: Operation):
-        # process remote execution queue for pending operations
+    def _execute_remote_queue(self):
         remote_op = self.execution_queue.pop()
         while remote_op:
             self._execute(remote_op)
             remote_op = self.execution_queue.pop()
+
+    def execute(self, op: Operation):
+        # process remote execution queue for pending operations
+        self._execute_remote_queue()
 
         # execute
         return self._execute(op)
@@ -61,6 +64,10 @@ class RequestHandler:
         op = deserialize(req.json)
         self.log.info("remote_received_operation: ", op)
         self.recv_queue.push(op)
+
+        # process remote execution queue for pending operations
+        self._execute_remote_queue()
+
         return serialize(None)
 
     def process_local(self, req: Request):
