@@ -10,10 +10,12 @@ Low performance crdt implementation for json (proof of concept for convergence)
 
 ## Quickstart
 
-Get started with json-crdt
+### Get started with json-crdt
+
+**Note: Install required packages from requirements.txt before proceeding**
 
 ```
-$ python3 main.py pocket-fox
+$ python3 main.py -p 5000 --name pocket-fox
 ```
 
 # :)
