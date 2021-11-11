@@ -1,5 +1,5 @@
 """
-Integration tests for the server go here
+Simple client for manual tests
 """
 import requests
 
