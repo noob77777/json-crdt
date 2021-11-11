@@ -35,7 +35,8 @@ class RequestHandler:
         self.counter.set(max(self.counter.counter, op.id.counter))
         self.log.info("lamport_counter: ", self.counter)
         # mark operation as done
-        self.done_queue.insert(op)
+        if op.type != OperationType.GET:
+            self.done_queue.insert(op)
         self.log.info("current_state: ", self.state)
         self.log.info("executing_operation: ", op)
         # update state
@@ -103,7 +104,7 @@ class RequestHandler:
         if req_type != OperationType.GET:
             deps = []
             if len(self.done_queue.q):
-                deps = [max(self.done_queue.q)]
+                deps = [self.done_queue.get_max()]
             remote_op = Operation(
                 op.id, deps, op.cursor, True, op.type, op.payload, op.args)
             self.log.info("sending_remote_op: ", remote_op)

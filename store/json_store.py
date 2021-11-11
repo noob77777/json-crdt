@@ -8,11 +8,12 @@ from util.logger import Logger
 class Node:
     # basic node for json tree
 
-    def __init__(self, id, last_modified=LamportCounter(), list_index=-1, tombstone=False):
+    def __init__(self, id, last_modified=LamportCounter(), list_index=-1, v_index=-1, tombstone=False):
         self.id = id
         self.last_modified = last_modified
         self.tombstone = tombstone
         self.list_index = list_index
+        self.v_index = v_index
         self.children = dict()
 
     # recursively set the last modified for entire subtree
@@ -21,9 +22,10 @@ class Node:
         for id in self.children:
             self.children[id].set_last_modified(last_modified)
 
-    def delete(self, id):
+    def delete(self, id, timestamp):
         if id in self.children:
             self.children[id].tombstone = True
+            self.children[id].last_modified = timestamp
 
     def assign(self, node):
         self.children[node.id] = node
@@ -33,12 +35,15 @@ class RegNodeT(Node):
     # register nodes contain simple values -> (string, boolean, null, number)
     # supports only string for now
 
-    def __init__(self, id, value, last_modified=LamportCounter(), list_index=-1, tombstone=False):
-        super().__init__(id, last_modified, list_index, tombstone)
-        self.value = value
+    def __init__(self, id, value, last_modified=LamportCounter(), list_index=-1, v_index=-1, tombstone=False):
+        super().__init__(id, last_modified, list_index, v_index, tombstone)
+        self.value = str(value)
 
     def __str__(self):
         return "( id: " + self.id + " :: " + self.value + " )"
+
+    def delete(self, id, timestamp):
+        pass
 
     def assign(self, node):
         pass
@@ -46,17 +51,22 @@ class RegNodeT(Node):
 
 class ListNodeT(Node):
     # json list node type
+    # implementation based on RGA (replicated global array crdt) to guarantee convergence
 
     ID_LENGTH = 32
+    ROOT_HEAD_ID = "list_root_index_1259321"
 
-    def __init__(self, id, last_modified=LamportCounter(), list_index=-1, tombstone=False):
-        super().__init__(id, last_modified, list_index, tombstone)
+    def __init__(self, id, last_modified=LamportCounter(), list_index=-1, v_index=-1, tombstone=False):
+        super().__init__(id, last_modified, list_index, v_index, tombstone)
+        # dummy element at -1 index to handle insert_at_head
+        self.children[ListNodeT.ROOT_HEAD_ID] = RegNodeT(
+            ListNodeT.ROOT_HEAD_ID, 0)
 
     def __str__(self):
         s = ""
         st_list = []
         for id in self.children:
-            if not self.children[id].tombstone:
+            if not self.children[id].tombstone and id != ListNodeT.ROOT_HEAD_ID:
                 st_list.append(self.children[id])
         st_list.sort(key=lambda node: node.list_index)
         for node in st_list:
@@ -72,36 +82,52 @@ class ListNodeT(Node):
                        for _ in range(ListNodeT.ID_LENGTH))
 
     def assign(self, node):
-        # assign only if node already present and has same index
-        if node.id in self.children and self.children[node.id].list_index == node.list_index:
-            return super().assign(node)
+        # rga does not support assign use delete + insert
+        pass
 
     def insert_at_head(self, node):
-        # head is always at list_index 0
-        node.list_index = 0
-
-        # id should be unique
-        if not node.id in self.children:
-            # increment list_indices for all nodes
-            for id in self.children:
-                self.children[id].list_index += 1
-            self.children[node.id] = node
+        # convert to insert_after
+        self.insert_after(ListNodeT.ROOT_HEAD_ID, node)
 
     def insert_after(self, id, node):
-        # insert_after id should be present
-        if id in self.children:
-            # list index for node is next to list_index for node with 'id' id
-            node.list_index = self.children[id].list_index + 1
+        # insert_after id should be present and node.id should not be already present
+        if id in self.children and not node.id in self.children:
+            # find probable virtual index
+            probable_virtual_index = self.children[id].v_index + 1
 
-            # increment list_index of all nodes after the insertion point
+            # get id of elem with whose place we are taking
+            # insert_postion_node is None if inserting after last index
+            insert_postion_node = None
             for _id in self.children:
-                if self.children[_id].list_index > self.children[id].list_index:
-                    self.children[_id].list_index += 1
-            self.children[node.id] = node
+                if self.children[_id].v_index == probable_virtual_index:
+                    insert_postion_node = self.children[_id]
+                    break
 
-    def delete(self, id):
+            # find list_index of non-tombstone with v_index <= probable_virtual_index
+            probable_list_index = -1
+            for _id in self.children:
+                if self.children[_id].v_index < probable_virtual_index and not self.children[_id].tombstone:
+                    probable_list_index = max(
+                        probable_list_index, self.children[_id].list_index + 1)
+
+            # if there are no conflicts we can insert at this position
+            # rga constraints are maintained here
+            if not insert_postion_node or insert_postion_node.last_modified < node.last_modified:
+                node.list_index = probable_list_index
+                node.v_index = probable_virtual_index
+                # increment list_index of all nodes after the insertion point
+                for _id in self.children:
+                    if self.children[_id].v_index >= probable_virtual_index:
+                        self.children[_id].list_index += 1
+                        self.children[_id].v_index += 1
+                self.children[node.id] = node
+            # for a conflict we shift insertion postion to right recursively
+            else:
+                self.insert_after(insert_postion_node.id, node)
+
+    def delete(self, id, timestamp):
         # node should be present
-        if id in self.children and not self.children[id].tombstone:
+        if id in self.children and id != ListNodeT.ROOT_HEAD_ID and not self.children[id].tombstone:
             index = self.children[id].list_index
             for _id in self.children:
                 # decrement indices for nodes after deletion point
@@ -109,15 +135,15 @@ class ListNodeT(Node):
                     self.children[_id].list_index -= 1
             self.children[id].tombstone = True
 
-            # this makes sense
-            self.children[id].list_index -= 1
+            # updating last_modified breaks rga
+            # self.children[id].last_modified = timestamp
 
 
 class MapNodeT(Node):
     # json map node type
 
-    def __init__(self, id, last_modified=LamportCounter(), list_index=-1, tombstone=False):
-        super().__init__(id, last_modified, list_index, tombstone)
+    def __init__(self, id, last_modified=LamportCounter(), list_index=-1, v_index=-1, tombstone=False):
+        super().__init__(id, last_modified, list_index, v_index, tombstone)
 
     def __str__(self):
         s = ""
@@ -201,8 +227,7 @@ class Store:
                     return None
                 # delete only if last_modified is not in future
                 elif node.children[delete_id].last_modified < operation.id:
-                    node.delete(delete_id)
-                    node.children[delete_id].last_modified = operation.id
+                    node.delete(delete_id, operation.id)
                     return delete_id
                 else:
                     self.log.info("deletion_restricted: ", operation)

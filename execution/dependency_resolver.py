@@ -9,12 +9,21 @@ from util.logger import Logger
 
 class DoneOperationsQueue:
     # simple hashset to check if operation ids are already executed
+    # storing string and object seperately
+    # string used for matching and object for comparision
+    # not the most efficient implementation
 
     def __init__(self):
         self.q = set()
+        self.q2 = set()
 
     def insert(self, operation: Operation):
         self.q.add(str(operation.id))
+        self.q2.add(operation.id)
+
+    # get dependecies for the state
+    def get_max(self):
+        return max(self.q2)
 
     # given a operation check if all its dependencies are already executed i.e. present in done queue
     def check_depencecies(self, operation: Operation):
