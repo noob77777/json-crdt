@@ -26,7 +26,7 @@ read = {
 
 def async_req(endpoint):
     # set a register/map
-    for _ in range(0):
+    for _ in range(32):
         data = {
             "type": "assign",
             "cursor": [],

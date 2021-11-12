@@ -147,9 +147,13 @@ class MapNodeT(Node):
 
     def __str__(self):
         s = ""
+        st_list = []
         for id in self.children:
             if not self.children[id].tombstone:
-                s += " " + id + " : " + str(self.children[id])
+                st_list.append(self.children[id])
+        st_list.sort(key=lambda node: node.id)
+        for node in st_list:
+            s += " " + node.id + " : " + str(node)
         s = s.lstrip()
         return "{ id: " + self.id + " :: " + s + " }"
 
