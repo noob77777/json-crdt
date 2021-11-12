@@ -5,6 +5,7 @@ import requests
 from execution.operations import Operation
 from store.serializer import serialize
 from util.command_parser import CommandLineArgs
+from util.config_reader import ConfigReader
 from util.logger import Logger
 
 
@@ -31,13 +32,14 @@ class SenderQueue(ReceiverQueue):
     def __init__(self):
         super().__init__()
         self.log = Logger()
-        self.cli = CommandLineArgs()
+        self.config = ConfigReader()
 
     def _start(self):
         # update replica ip list here
         # filter to not send requests to self
-        ENDPOINTS = list(filter(lambda endpoint: not str(self.cli.get("port")) in endpoint, [
-                         "http://127.0.0.1:5000", "http://127.0.0.1:5001"]))
+        ENDPOINTS = list(
+            filter(lambda endpoint: endpoint, self.config.get("peers")))
+
         while True:
             op = self.pop()
             if op:
@@ -48,5 +50,6 @@ class SenderQueue(ReceiverQueue):
                                   r.status_code, "operation: ", op, "replica: ", API_ENDPOINT)
 
     def start(self):
+        self.log.info("peers_list: ", self.config.get("peers"))
         t = threading.Thread(target=self._start)
         t.start()

@@ -10,8 +10,7 @@ from store.json_store import ListNodeT, MapNodeT, RegNodeT
 from store.serializer import serialize, deserialize
 
 # defining the api-endpoints
-API_ENDPOINT1 = "http://127.0.0.1:5000/"
-API_ENDPOINT2 = "http://127.0.0.1:5001/"
+API_ENDPOINTS = ["http://127.0.0.1:5000", "http://127.0.0.1:5001"]
 
 # fixed queries
 create_list = {
@@ -74,21 +73,21 @@ def async_req(endpoint):
 
 
 # recommended: loop more than once
-for _ in range(32):
+for _ in range(16):
     # init contents
-    resp = requests.post(url=API_ENDPOINT1, json=create_list)
+    resp = requests.post(url=API_ENDPOINTS[0], json=create_list)
     assert(resp.status_code == 200)
 
     # make sure all replicas have heard about init changes
     time.sleep(2)
 
     # stress
-    t1 = threading.Thread(target=async_req, args=(API_ENDPOINT1,))
-    t2 = threading.Thread(target=async_req, args=(API_ENDPOINT2,))
-    t1.start()
-    t2.start()
-    t1.join()
-    t2.join()
+    threads = list(map(lambda endpoint: threading.Thread(
+        target=async_req, args=(endpoint,)), API_ENDPOINTS))
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
 
     # make sure all replicas have heard about all changes
     time.sleep(2)
@@ -96,22 +95,22 @@ for _ in range(32):
     # assert equal
     # reminder: maps are unordered
     try:
-        read1 = requests.post(url=API_ENDPOINT1, json=read)
-        read2 = requests.post(url=API_ENDPOINT2, json=read)
-        assert(str(deserialize(bytes(read1.text, 'utf-8'))) ==
-               str(deserialize(bytes(read2.text, 'utf-8'))))
+        reads = list(map(lambda endpoint: str(deserialize(bytes(requests.post(
+            url=endpoint, json=read).text, 'utf-8'))), API_ENDPOINTS))
+        unique = set(reads)
+        assert(len(unique) == 1)
         print("passed-all")
     except:
         # make sure failure is not due to network delays
         time.sleep(10)
-        read1 = requests.post(url=API_ENDPOINT1, json=read)
-        read2 = requests.post(url=API_ENDPOINT2, json=read)
         try:
-            assert(str(deserialize(bytes(read1.text, 'utf-8'))) ==
-                   str(deserialize(bytes(read2.text, 'utf-8'))))
+            reads = list(map(lambda endpoint: str(deserialize(bytes(requests.post(
+                url=endpoint, json=read).text, 'utf-8'))), API_ENDPOINTS))
+            unique = set(reads)
+            assert(len(unique) == 1)
             print("passed-all")
         except:
             print("failed")
-            print(deserialize(bytes(read1.text, 'utf-8')))
-            print(deserialize(bytes(read2.text, 'utf-8')))
+            for read in reads:
+                print(read)
             break
