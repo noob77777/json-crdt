@@ -131,6 +131,12 @@ def post_replica():
     return handler.process_remote(request), 200
 
 
+@api.route('/', methods=['GET'])
+# health check
+def health_check():
+    return "Service is healthy.", 200
+
+
 if __name__ == '__main__':
     Logger().info("***** SERVER STARTED ******")
     api.run(port=CommandLineArgs().get("port"), threaded=False)
