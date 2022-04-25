@@ -139,4 +139,4 @@ def health_check():
 
 if __name__ == '__main__':
     Logger().info("***** SERVER STARTED ******")
-    api.run(port=CommandLineArgs().get("port"), threaded=False)
+    api.run(host="0.0.0.0", port=CommandLineArgs().get("port"), threaded=False)

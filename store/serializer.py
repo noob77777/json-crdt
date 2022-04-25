@@ -6,7 +6,7 @@ import pickle
 
 
 def serialize(node):
-    return base64.b64encode(pickle.dumps(node))
+    return base64.b64encode(pickle.dumps(node)).decode('utf-8')
 
 
 def deserialize(data):
